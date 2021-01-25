@@ -1,0 +1,12 @@
+version 1.1
+@totalColumns 10
+District: notEmpty
+TA: notEmpty
+VC: @optional
+ZONE: @optional
+Household_Code: notEmpty unique 
+Household_Head_Name: notEmpty
+Household_Head_Id: notEmpty unique 
+Contact_number: @optional
+Conditionality_Compliance: is("1") or is("0")
+Observation: @optional

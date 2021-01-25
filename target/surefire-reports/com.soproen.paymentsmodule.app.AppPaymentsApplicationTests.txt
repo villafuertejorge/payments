@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.soproen.paymentsmodule.app.AppPaymentsApplicationTests
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.977 s - in com.soproen.paymentsmodule.app.AppPaymentsApplicationTests
