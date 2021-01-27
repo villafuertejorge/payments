@@ -40,13 +40,13 @@ import lombok.extern.slf4j.Slf4j;
 public class TermServiceImpl implements TermService {
 
 	@Autowired
-	private PayTermRepository payTermRepository;
-	@Autowired
 	private CatalogService catalogService;
 	@Autowired
-	private PayTermFileRepository payTermFileRepository;
+	private HouseholdService householdService;
 	@Autowired
-	private HouseholdService payHouseholdService;
+	private PayTermRepository payTermRepository;
+	@Autowired
+	private PayTermFileRepository payTermFileRepository;
 	@Autowired
 	private Utilities utilities;
 
@@ -122,7 +122,7 @@ public class TermServiceImpl implements TermService {
 			} else {
 				PayDistrict payDistrictTmp = catalogService.findPayDistrictById(payCreateTermDTO.getPayDistrict().getId());
 
-				payTermFileList = payHouseholdService.findPayTransferInstitutionsByDistrict(payDistrictTmp).stream().map(tranferInstTmp -> {
+				payTermFileList = householdService.findPayTransferInstitutionsByDistrict(payDistrictTmp).stream().map(tranferInstTmp -> {
 
 					PayTermFile termFileTmp = createPayTermFile(tranferInstTmp, payDistrictTmp, currentDate);
 					return termFileTmp;

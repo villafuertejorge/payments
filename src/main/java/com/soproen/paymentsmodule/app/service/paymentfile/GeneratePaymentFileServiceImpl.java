@@ -31,11 +31,11 @@ import lombok.extern.slf4j.Slf4j;
 public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileService{
 
 	@Autowired
-	private TermService payTermService;
+	private TermService termService;
 	@Autowired
 	private PaymentService paymentService;
 	@Autowired
-	private HouseholdService payHouseholdService;
+	private HouseholdService householdService;
 	@Autowired
 	private CsvUtils csvUtils;
 	
@@ -46,13 +46,13 @@ public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileServic
 		try {
 
 			Optional<PayTermFile> optPayTermFile;
-			if (!(optPayTermFile = payTermService.findOnePayTermFileWithCurrentStatus(PayTermFileStatusEnum.PENDING)).isPresent()) {
+			if (!(optPayTermFile = termService.findOnePayTermFileWithCurrentStatus(PayTermFileStatusEnum.PENDING)).isPresent()) {
 				return Optional.empty();
 			}
 
 			PayTermFile payTermFile = optPayTermFile.get();
 			log.info("payTermFile.getId() = {}", payTermFile.getId());
-			payTermService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.GENERATING_DATA, "");
+			termService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.GENERATING_DATA, "");
 			return optPayTermFile;
 
 		} catch (DataAccessException e) {
@@ -66,7 +66,7 @@ public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileServic
 	public void changePayTermFileStatus(PayTermFile payTermFile, PayTermFileStatusEnum newStatus, String errorDescription)
 			throws ServiceException {
 		try {
-			payTermService.changePayTermFileStatus(payTermFile, newStatus, errorDescription);
+			termService.changePayTermFileStatus(payTermFile, newStatus, errorDescription);
 		} catch (DataAccessException e) {
 			log.error("changePayTermFileStatus = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
@@ -80,7 +80,7 @@ public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileServic
 
 			Boolean isEmpty = paymentService.generatePaymentFileInformation(termFile);
 			PayTermFileStatusEnum status = isEmpty ? PayTermFileStatusEnum.EMPTY_FILE : PayTermFileStatusEnum.GENERATED_DATA;
-			payTermService.changePayTermFileStatus(termFile, status, "");
+			termService.changePayTermFileStatus(termFile, status, "");
 			return status;
 
 		} catch (DataAccessException e) {
@@ -102,11 +102,83 @@ public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileServic
 	}
 	
 	
+	
+	
 	@Override
 	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.REQUIRES_NEW)
-	public void createCsvPaymentFile(PayTermFile payTermFile) throws ServiceException {
+	public void calculatePaymentAmount()  throws ServiceException{
+		try {
+			log.info("INI-PARALLEL");
+			
+			
+			List<PayPaymentFileInfo> list = paymentService.findPayPaymentFileInfoByStatus(PayPaymentFileInfoStatusEnum.PENDING, 100);
+			list.stream().parallel().forEach(obj -> {
+
+				try {
+					PayHouseholdIdAndCodeDTO payHousehold = householdService.findPayHouseholdIdAndCodeDTO(obj.getPayHouseholdId());
+					Map<PaymentsAmountsEnum, Double> hashMapAmount = paymentService.calculateAmountAndSaveHouseholdPaymentRegistry(obj.getPayTermFileId(),
+							payHousehold);
+					obj.setAmount(hashMapAmount.get(PaymentsAmountsEnum.TOTAL_AMOUNT));
+					obj.setStatus(PayPaymentFileInfoStatusEnum.DONE);
+				} catch (RuntimeException e) {
+					obj.setStatus(PayPaymentFileInfoStatusEnum.ERROR);
+					obj.setErrorDescription(e.getMessage());
+				}
+			});
+			
+			paymentService.saveAllPayPaymentFileInfo(list);
+			
+			log.info("END-PARALLEL");
+		} catch (DataAccessException e) {
+			log.error("calculatePaymentAmount = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+	
+	
+	@Override
+	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.REQUIRES_NEW)
+	public void verifyCompleteCalculateAmountProcess()  throws ServiceException{
+		try {
+			
+			List<PayTermFile> payTermFileList = termService.findPayTermFileWithCurrentStatus(PayTermFileStatusEnum.CALCULATING_AMOUNT, 5);
+			
+			payTermFileList.stream().forEach(payTermFileTmp ->{
+				
+				List<CalculateAmountResumeDTO> calculateAmountResumeDTOList = paymentService.retrieveSummaryGeneratePaymentAmount(payTermFileTmp);
+				Boolean existPending = calculateAmountResumeDTOList.stream()
+						.filter(obj1 -> obj1.getPayPaymentFileInfoStatus().equals(PayPaymentFileInfoStatusEnum.PENDING)).findAny().isPresent();
+				Boolean existError = calculateAmountResumeDTOList.stream()
+						.filter(obj1 -> obj1.getPayPaymentFileInfoStatus().equals(PayPaymentFileInfoStatusEnum.ERROR)).findAny().isPresent();
+				
+				
+				if (!existPending) {
+					PayTermFileStatusEnum newStatus = existError ? PayTermFileStatusEnum.ERROR : PayTermFileStatusEnum.GENERATING_FILE;
+					termService.changePayTermFileStatus(payTermFileTmp, newStatus, existError ? "There was an error calculating payment amount":"");
+				}
+				
+			});
+		} catch (DataAccessException e) {
+			log.error("verifyCompleteCalculateAmountProcess = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+
+	
+	@Override
+	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.REQUIRES_NEW)
+	public void createCsvPaymentFile() throws ServiceException {
 		try {
 
+			
+			Optional<PayTermFile> optPayTermFile;
+			if (!(optPayTermFile = termService.findOnePayTermFileWithCurrentStatus(PayTermFileStatusEnum.GENERATING_FILE)).isPresent()) {
+				return;
+			}
+			
+			PayTermFile payTermFile = optPayTermFile.get();
+			
+			
 			List<Object[]> dataList = paymentService.findAllPayPaymentFileInfoByPayTermFile(payTermFile).stream().map(tmp -> {
 						String[] array = new String[] { tmp.getDistrictName(), tmp.getTaName(), tmp.getVillageName(),
 								tmp.getZoneName(), tmp.getHouseholdCode(), 
@@ -141,8 +213,8 @@ public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileServic
 							"Transfer_date",
 							"Observation" });
 
-			payTermService.updatePayTermFileInfo(payTermFile, dataList.size(), path);
-			payTermService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.GENERATED, "");
+			termService.updatePayTermFileInfo(payTermFile, dataList.size(), path);
+			termService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.GENERATED, ""); 
 
 		} catch (DataAccessException e) {
 			log.error("createCsvPaymentFile = {} ", e.getMessage());
@@ -150,65 +222,6 @@ public class GeneratePaymentFileServiceImpl implements GeneratePaymentFileServic
 		}
 	}
 	
-	@Override
-	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.REQUIRES_NEW)
-	public void calculatePaymentAmount()  throws ServiceException{
-		try {
-			log.info("INI-PARALLEL");
-			
-			
-			List<PayPaymentFileInfo> list = paymentService.findPayPaymentFileInfoByStatus(PayPaymentFileInfoStatusEnum.PENDING, 100);
-			list.stream().parallel().forEach(obj -> {
-
-				try {
-					PayHouseholdIdAndCodeDTO payHousehold = payHouseholdService.findPayHouseholdIdAndCodeDTO(obj.getPayHouseholdId());
-					Map<PaymentsAmountsEnum, Double> hashMapAmount = paymentService.calculateAmountAndSaveHouseholdPaymentRegistry(obj.getPayTermFileId(),
-							payHousehold);
-					obj.setAmount(hashMapAmount.get(PaymentsAmountsEnum.TOTAL_AMOUNT));
-					obj.setStatus(PayPaymentFileInfoStatusEnum.DONE);
-				} catch (RuntimeException e) {
-					obj.setStatus(PayPaymentFileInfoStatusEnum.ERROR);
-					obj.setErrorDescription(e.getMessage());
-				}
-			});
-			
-			paymentService.saveAllPayPaymentFileInfo(list);
-			
-			log.info("END-PARALLEL");
-		} catch (DataAccessException e) {
-			log.error("calculatePaymentAmount = {} ", e.getMessage());
-			throw new ServiceException(e.getMessage());
-		}
-	}
-	
-	
-	@Override
-	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.REQUIRES_NEW)
-	public void generatePaymentFile()  throws ServiceException{
-		try {
-			
-			List<PayTermFile> payTermFileList = payTermService.findPayTermFileWithCurrentStatus(PayTermFileStatusEnum.CALCULATING_AMOUNT, 5);
-			
-			payTermFileList.stream().forEach(payTermFileTmp ->{
-				
-				List<CalculateAmountResumeDTO> calculateAmountResumeDTOList = paymentService.retrieveSummaryGeneratePaymentAmount(payTermFileTmp);
-				Boolean existPending = calculateAmountResumeDTOList.stream()
-						.filter(obj1 -> obj1.getPayPaymentFileInfoStatus().equals(PayPaymentFileInfoStatusEnum.PENDING)).findAny().isPresent();
-				Boolean existError = calculateAmountResumeDTOList.stream()
-						.filter(obj1 -> obj1.getPayPaymentFileInfoStatus().equals(PayPaymentFileInfoStatusEnum.ERROR)).findAny().isPresent();
-				
-				
-				if (!existPending) {
-					PayTermFileStatusEnum newStatus = existError ? PayTermFileStatusEnum.ERROR : PayTermFileStatusEnum.CALCULATED_AMOUNT;
-					payTermService.changePayTermFileStatus(payTermFileTmp, newStatus, existError ? "There was an error calculating payment amount":"");
-				}
-				
-			});
-		} catch (DataAccessException e) {
-			log.error("generatePaymentFile = {} ", e.getMessage());
-			throw new ServiceException(e.getMessage());
-		}
-	}
 	
 	
 }

@@ -21,7 +21,7 @@ public class PaymentsJobs {
 	public void generatePaymentInformationJob() {
 		try {
 			log.debug("launched generatePaymentInformationJob ");
-			handlerGeneratePaymentFileService.generatePaymentInformation();
+			handlerGeneratePaymentFileService.handlerGeneratePaymentInformation();
 			log.debug("done generatePaymentInformationJob ");
 		} catch (ServiceException e) {
 			log.error("generatePaymentInformationJob = {} ", e.getMessage());
@@ -34,26 +34,40 @@ public class PaymentsJobs {
 	public void calculatePaymentAmountJob() {
 		try {
 			log.debug("launched calculatePaymentAmountJob ");
-			handlerGeneratePaymentFileService.calculatePaymentAmount();
+			handlerGeneratePaymentFileService.handlerCalculatePaymentAmount();
 			log.debug("done calculatePaymentAmountJob ");
 		} catch (ServiceException e) {
 			log.error("calculatePaymentAmountJob = {} ", e.getMessage());
 		}
 	}
-	
-	
+
 	// @Scheduled(fixedRateString =
-		// "${app.generate-payment-file-job-fixed-rate}", initialDelayString =
-		// "${app.generate-payment-file-job-initial-delay}")
-		public void generatePaymentFileJob() {
-			try {
-				log.debug("launched generatePaymentFileJob ");
-				handlerGeneratePaymentFileService.generatePaymentFile();
-				log.debug("done generatePaymentFileJob ");
-			} catch (ServiceException e) {
-				log.error("generatePaymentFileJob = {} ", e.getMessage());
-			}
+	// "${app.verify-complete-calculate-amount-process-job-fixed-rate}",
+	// initialDelayString =
+	// "${app.verify-complete-calculate-amount-process-job-initial-delay}")
+	public void verifyCompleteCalculateAmountProcessJob() {
+		try {
+			log.debug("launched verifyCompleteCalculateAmountProcessJob ");
+			handlerGeneratePaymentFileService.handlerVerifyCompleteCalculateAmountProcess();
+			log.debug("done verifyCompleteCalculateAmountProcessJob ");
+		} catch (ServiceException e) {
+			log.error("verifyCompleteCalculateAmountProcessJob = {} ", e.getMessage());
 		}
+	}
+
+	// @Scheduled(fixedRateString =
+	// "${app.generate-payment-file-job-fixed-rate}",
+	// initialDelayString =
+	// "${app.generate-payment-file-job-initial-delay}")
+	public void generatePaymentFileJob() {
+		try {
+			log.debug("launched generatePaymentFileJob ");
+			handlerGeneratePaymentFileService.handlerGeneratePaymentFile();
+			log.debug("done generatePaymentFileJob ");
+		} catch (ServiceException e) {
+			log.error("generatePaymentFileJob = {} ", e.getMessage());
+		}
+	}
 	
 	
 

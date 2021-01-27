@@ -16,12 +16,12 @@ public interface GeneratePaymentFileService {
 
 	PayTermFileStatusEnum generatePaymentInformation(PayTermFile termFile) throws ServiceException;
 
-	void createCsvPaymentFile(PayTermFile payTermFile) throws ServiceException;
-
 	List<PayPaymentFileInfo> retrievePayPaymentFileInfo(PayTermFile payTermFileTmp);
 
 	void calculatePaymentAmount()  throws ServiceException;;
 
-	void generatePaymentFile() throws ServiceException;;
+	void verifyCompleteCalculateAmountProcess() throws ServiceException;
+
+	void createCsvPaymentFile() throws ServiceException;
 
 }

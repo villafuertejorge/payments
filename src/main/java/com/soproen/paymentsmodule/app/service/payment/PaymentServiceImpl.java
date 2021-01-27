@@ -59,6 +59,12 @@ public class PaymentServiceImpl implements PaymentService {
 
 	@Value("${app.end-point-retrieve-household-compliance-information}")
 	private String endPointRetrieveHouseholdComplianceInformation;
+
+	// restTemplate for "compliance-app"
+	@Autowired
+	@Qualifier("restTemplateCompliance")
+	private RestTemplate restTemplateCompliance;
+
 	@Autowired
 	private HouseholdService householdService;
 	@Autowired
@@ -67,9 +73,6 @@ public class PaymentServiceImpl implements PaymentService {
 	private PayPaymentFileInfoRepository payPaymentFileInfoRepository;
 	@Autowired
 	private PayHouseholdPaymentsRegistryRepository payHouseholdPaymentsRegistryRepository;
-	@Autowired
-	@Qualifier("restTemplateCompliance")
-	private RestTemplate restTemplateCompliance;
 
 	@Override
 	@Transactional
@@ -222,11 +225,33 @@ public class PaymentServiceImpl implements PaymentService {
 	public Map<PaymentsAmountsEnum, Double> calculateAmountAndSaveHouseholdPaymentRegistry(Long payTermFileId,
 			PayHouseholdIdAndCodeDTO payHouseholdIdAndCodeDTO) throws ServiceException {
 		try {
-
+			
 			PayTermFile payTermFile = termService.findPayTermFileById(payTermFileId);
-
+			
 			PayHousehold payHousehold = PayHousehold.builder().householdCode(payHouseholdIdAndCodeDTO.getHouseholdCode())
 					.householdId(payHouseholdIdAndCodeDTO.getPayHouseholdId()).build();
+			
+			Map<PaymentsAmountsEnum, Double> hashMapAmount = calculateTotalAmountForHousehold(payTermFile, payHousehold);
+			registerPendingPayment(payTermFile, payHousehold, hashMapAmount);
+			
+			return hashMapAmount;
+		} catch (DataAccessException e) {
+			log.error("calculateAmountAndSaveHouseholdPaymentRegistry = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+
+	/**
+	 * retrieve the total amount for the household, this process just calculate
+	 * values, not save information
+	 * 
+	 * @param payTermFileId
+	 * @param payHouseholdIdAndCodeDTO
+	 * @return
+	 */
+	@Transactional
+	private Map<PaymentsAmountsEnum, Double> calculateTotalAmountForHousehold(PayTermFile payTermFile, PayHousehold payHousehold) {
+		try {
 
 			Double currentAmount = calculateCurrentAmount(payTermFile, payHousehold);
 			Double arrearsAmount = calculateArrearsAmount(payHousehold);
@@ -240,10 +265,10 @@ public class PaymentServiceImpl implements PaymentService {
 					put(PaymentsAmountsEnum.TOTAL_AMOUNT, totalAmount);
 				}
 			};
-			registerPendingPayment(payTermFile, payHousehold, hashMapAmount);
 			return hashMapAmount;
+			
 		} catch (DataAccessException e) {
-			log.error("calculateAmountAndSaveHouseholdPaymentRegistry = {} ", e.getMessage());
+			log.error("calculateTotalAmountForHousehold = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
 		}
 	}
@@ -269,7 +294,6 @@ public class PaymentServiceImpl implements PaymentService {
 			inactivatePayHouseholdClaims(payHousehold, claimsInfo.getObject());
 			Double claimsValues = claimsInfo.getValue();
 
-			// payTermFile.getPayTerm().getPayFormulas().size();
 			Double currentAmount = payTermFile.getPayTerm().getPayFormulas().stream().mapToDouble(obj -> calculateAmount(payHousehold, obj)).sum();
 
 			return currentAmount + claimsValues;
