@@ -12,9 +12,11 @@ import com.soproen.paymentsmodule.app.enums.YesNoEnum;
 import com.soproen.paymentsmodule.app.model.catalog.PayDistrict;
 import com.soproen.paymentsmodule.app.model.catalog.PayFormula;
 import com.soproen.paymentsmodule.app.model.catalog.PayProgram;
+import com.soproen.paymentsmodule.app.model.catalog.PayTransferInstitution;
 import com.soproen.paymentsmodule.app.repository.catalog.PayDistrictRepository;
 import com.soproen.paymentsmodule.app.repository.catalog.PayFormulaRepository;
 import com.soproen.paymentsmodule.app.repository.catalog.PayProgramRepository;
+import com.soproen.paymentsmodule.app.repository.catalog.PayTransferIntitutionRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,6 +31,8 @@ public class CatalogServiceImpl implements CatalogService {
 	private PayDistrictRepository payDistrictRepository;
 	@Autowired
 	private PayFormulaRepository payFormulaRepository;
+	@Autowired
+	private PayTransferIntitutionRepository payTransferIntitutionRepository;
 	
 	@Override
 	@Transactional(readOnly = true)
@@ -62,5 +66,39 @@ public class CatalogServiceImpl implements CatalogService {
 			throw new ServiceException(e.getMessage());
 		}
 	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public PayDistrict findPayDistrictById(Long districtId) throws ServiceException{
+		try {
+			return payDistrictRepository.findById(districtId).get();
+		} catch(DataAccessException e) {
+			log.error("findPayDistrictById = {} ",e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public PayFormula findPayFormulaById(Long formulaId) throws ServiceException{
+		try {
+			return payFormulaRepository.findById(formulaId).get();
+		} catch(DataAccessException e) {
+			log.error("findPayFormulaById = {} ",e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public List<PayTransferInstitution> findAllPayTransferInstitution() throws ServiceException{
+		try {
+			return payTransferIntitutionRepository.findAll();
+		} catch(DataAccessException e) {
+			log.error("findAllPayTransferInstitution = {} ",e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+	
 	
 }

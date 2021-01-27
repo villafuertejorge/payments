@@ -14,11 +14,11 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>payments-module</name>
 	<description>payments module</description>
-	
+
 	<properties>
 		<java.version>1.8</java.version>
 	</properties>
-	
+
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -67,6 +67,12 @@
 			<groupId>com.soproen</groupId>
 			<artifactId>soproen-payments-dto</artifactId>
 			<version>1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>commons-beanutils</groupId>
+			<artifactId>commons-beanutils</artifactId>
+			<version>1.9.3</version>
 		</dependency>
 
 	</dependencies>

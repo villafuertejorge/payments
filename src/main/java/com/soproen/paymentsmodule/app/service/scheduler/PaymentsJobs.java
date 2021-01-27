@@ -1,9 +1,10 @@
 package com.soproen.paymentsmodule.app.service.scheduler;
 
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.soproen.paymentsmodule.app.exceptions.ServiceException;
+import com.soproen.paymentsmodule.app.service.paymentfile.HandlerGeneratePaymentFileService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -11,27 +12,62 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class PaymentsJobs {
 
-	
-	//@Scheduled(fixedRateString = "${app.generate-payments-file-job-fixed-rate}", initialDelayString = "${app.generate-payments-file-job-initial-delay}")
-	public void generatePaymentsFileJob() {
+	@Autowired
+	private HandlerGeneratePaymentFileService handlerGeneratePaymentFileService;
+
+	// @Scheduled(fixedRateString =
+	// "${app.generate-payment-information-job-fixed-rate}", initialDelayString =
+	// "${app.generate-payment-information-job-initial-delay}")
+	public void generatePaymentInformationJob() {
 		try {
-			log.debug("launched generatePaymentsFileJob ");
-			//handlerGenerateComplianceFileService.generateComplianceFile();
-			log.debug("done generatePaymentsFileJob ");
+			log.debug("launched generatePaymentInformationJob ");
+			handlerGeneratePaymentFileService.generatePaymentInformation();
+			log.debug("done generatePaymentInformationJob ");
 		} catch (ServiceException e) {
-			log.error("generatePaymentsFileJob = {} ", e.getMessage());
-		} 
+			log.error("generatePaymentInformationJob = {} ", e.getMessage());
+		}
+	}
+
+	// @Scheduled(fixedRateString =
+	// "${app.calculate-payment-amount-job-fixed-rate}", initialDelayString =
+	// "${app.calculate-payment-amount-job-initial-delay}")
+	public void calculatePaymentAmountJob() {
+		try {
+			log.debug("launched calculatePaymentAmountJob ");
+			handlerGeneratePaymentFileService.calculatePaymentAmount();
+			log.debug("done calculatePaymentAmountJob ");
+		} catch (ServiceException e) {
+			log.error("calculatePaymentAmountJob = {} ", e.getMessage());
+		}
 	}
 	
-	//@Scheduled(fixedRateString = "${app.conciliate-payments-file-job-fixed-rate}", initialDelayString = "${app.conciliate-payments-file-job-initial-delay}")
+	
+	// @Scheduled(fixedRateString =
+		// "${app.generate-payment-file-job-fixed-rate}", initialDelayString =
+		// "${app.generate-payment-file-job-initial-delay}")
+		public void generatePaymentFileJob() {
+			try {
+				log.debug("launched generatePaymentFileJob ");
+				handlerGeneratePaymentFileService.generatePaymentFile();
+				log.debug("done generatePaymentFileJob ");
+			} catch (ServiceException e) {
+				log.error("generatePaymentFileJob = {} ", e.getMessage());
+			}
+		}
+	
+	
+
+	// @Scheduled(fixedRateString =
+	// "${app.conciliate-payments-file-job-fixed-rate}", initialDelayString =
+	// "${app.conciliate-payments-file-job-initial-delay}")
 	public void conciliationPaymentsFileJob() {
 		try {
 			log.debug("launched conciliationPaymentsFileJob ");
-			//handlerConciliationComplianceFileService.conciliateFile();
+			// handlerConciliationComplianceFileService.conciliateFile();
 			log.debug("done conciliationPaymentsFileJob ");
 		} catch (ServiceException e) {
 			log.error("conciliationPaymentsFileJob = {} ", e.getMessage());
-		} 
+		}
 	}
-	
+
 }

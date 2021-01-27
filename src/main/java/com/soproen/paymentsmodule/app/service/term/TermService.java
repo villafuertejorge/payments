@@ -1,5 +1,6 @@
 package com.soproen.paymentsmodule.app.service.term;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.soproen.paymentsdto.dto.term.PayCreateTermDTO;
@@ -21,5 +22,9 @@ public interface TermService {
 
 	void updatePayTermFileInfo(PayTermFile payTermFileTmp, Integer numberOfRecords, String generatedFilePath)
 			throws ServiceException;
+
+	PayTermFile findPayTermFileById(Long id) throws ServiceException;
+
+	List<PayTermFile> findPayTermFileWithCurrentStatus(PayTermFileStatusEnum status, Integer numberOfRecords) throws ServiceException;
 
 }

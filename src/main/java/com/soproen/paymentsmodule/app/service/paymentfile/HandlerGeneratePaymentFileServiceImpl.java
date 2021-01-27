@@ -23,7 +23,7 @@ public class HandlerGeneratePaymentFileServiceImpl implements HandlerGeneratePay
 	
 	@Override
 	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.NOT_SUPPORTED)
-	public void generatePaymentFile() throws ServiceException {
+	public void generatePaymentInformation() throws ServiceException {
 		
 		PayTermFile payTermFile = null;
 		try {
@@ -39,18 +39,39 @@ public class HandlerGeneratePaymentFileServiceImpl implements HandlerGeneratePay
 			}
 			
 			generatePaymentFileService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.CALCULATING_AMOUNT, "");
-			generatePaymentFileService.generatePaymentsAmouts(payTermFile);
-			
-			generatePaymentFileService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.GENERATING_FILE, "");
-			
 			
 		} catch (ServiceException e) {
 			if (payTermFile != null) {
 				generatePaymentFileService.changePayTermFileStatus(payTermFile, PayTermFileStatusEnum.ERROR, e.getMessage());
 			}
-			log.error("generatePaymentFile = {} ", e.getMessage());
+			log.error("generatePaymentInformation = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
 			
 		}
+	}
+	
+	
+	@Override
+	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.NOT_SUPPORTED)
+	public void calculatePaymentAmount() throws ServiceException {
+		try {
+			generatePaymentFileService.calculatePaymentAmount();
+		} catch (ServiceException e) {
+			log.error("calculatePaymentAmount = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+
+
+	@Override
+	@Transactional(rollbackFor = { ServiceException.class }, propagation = Propagation.NOT_SUPPORTED)
+	public void generatePaymentFile() throws ServiceException {
+		try {
+			
+		} catch (ServiceException e) {
+			log.error("generatePaymentFile = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+		
 	}
 }

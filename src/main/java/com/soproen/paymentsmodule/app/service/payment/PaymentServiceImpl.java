@@ -1,5 +1,6 @@
 package com.soproen.paymentsmodule.app.service.payment;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -8,11 +9,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.BeanUtils;
+import org.apache.commons.beanutils.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import com.soproen.paymentsdto.enums.CompComplianceAnswerEnum;
 import com.soproen.paymentsmodule.app.enums.PayHouseholdClaimStatus;
 import com.soproen.paymentsmodule.app.enums.PayHouseholdPaymentsRegistryStatusEnum;
 import com.soproen.paymentsmodule.app.enums.PayHouseholdStatusEnum;
+import com.soproen.paymentsmodule.app.enums.PayPaymentFileInfoStatusEnum;
 import com.soproen.paymentsmodule.app.enums.PayTermTypeEnum;
 import com.soproen.paymentsmodule.app.enums.PaymentsAmountsEnum;
 import com.soproen.paymentsmodule.app.exceptions.ServiceException;
@@ -34,14 +37,16 @@ import com.soproen.paymentsmodule.app.model.catalog.PayProgram;
 import com.soproen.paymentsmodule.app.model.catalog.PayTransferInstitution;
 import com.soproen.paymentsmodule.app.model.household.PayHousehold;
 import com.soproen.paymentsmodule.app.model.household.PayHouseholdClaimValue;
+import com.soproen.paymentsmodule.app.model.household.PayHouseholdIdAndCodeDTO;
 import com.soproen.paymentsmodule.app.model.household.PayHouseholdInformationForPaymentFileDTO;
+import com.soproen.paymentsmodule.app.model.payment.CalculateAmountResumeDTO;
 import com.soproen.paymentsmodule.app.model.payment.PayHouseholdPaymentsRegistry;
 import com.soproen.paymentsmodule.app.model.payment.PayPaymentFileInfo;
 import com.soproen.paymentsmodule.app.model.term.PayTermFile;
-import com.soproen.paymentsmodule.app.repository.household.PayHouseholdRepository;
-import com.soproen.paymentsmodule.app.repository.payment.PayHouseholdClaimValueRepository;
 import com.soproen.paymentsmodule.app.repository.payment.PayHouseholdPaymentsRegistryRepository;
 import com.soproen.paymentsmodule.app.repository.payment.PayPaymentFileInfoRepository;
+import com.soproen.paymentsmodule.app.service.household.HouseholdService;
+import com.soproen.paymentsmodule.app.service.term.TermService;
 import com.soproen.paymentsmodule.app.utilities.AmountWithRelatedObjectUtil;
 
 import lombok.extern.slf4j.Slf4j;
@@ -55,13 +60,13 @@ public class PaymentServiceImpl implements PaymentService {
 	@Value("${app.end-point-retrieve-household-compliance-information}")
 	private String endPointRetrieveHouseholdComplianceInformation;
 	@Autowired
-	private PayHouseholdRepository payHouseholdRepository;
+	private HouseholdService householdService;
+	@Autowired
+	private TermService termService;
 	@Autowired
 	private PayPaymentFileInfoRepository payPaymentFileInfoRepository;
 	@Autowired
 	private PayHouseholdPaymentsRegistryRepository payHouseholdPaymentsRegistryRepository;
-	@Autowired
-	private PayHouseholdClaimValueRepository payHouseholdClaimValueRepository;
 	@Autowired
 	@Qualifier("restTemplateCompliance")
 	private RestTemplate restTemplateCompliance;
@@ -77,20 +82,26 @@ public class PaymentServiceImpl implements PaymentService {
 			// retrieve household information
 			List<PayHouseholdInformationForPaymentFileDTO> housholdInfoDtoList;
 			if (payTermFile.getPayTerm().getType().equals(PayTermTypeEnum.NATIONAL)) {
-				housholdInfoDtoList = payHouseholdRepository.findPayHouseholdInformationForPaymentFileDTO(
-						payTranferInstitution.getId(), PayHouseholdStatusEnum.ACTIVE.name(), payProgram.getId());
+
+				housholdInfoDtoList = householdService.findPayHouseholdInformationForPaymentFileDTO(payTranferInstitution.getId(),
+						PayHouseholdStatusEnum.ACTIVE, payProgram.getId());
 			} else {
 				PayDistrict payDistrict = payTermFile.getPayDistrict();
-				housholdInfoDtoList = payHouseholdRepository.findPayHouseholdInformationForPaymentFileDTO(
-						payTranferInstitution.getId(), payDistrict.getId(), PayHouseholdStatusEnum.ACTIVE.name(),
-						payProgram.getId());
+
+				housholdInfoDtoList = householdService.findPayHouseholdInformationForPaymentFileDTO(payTranferInstitution.getId(),
+						payDistrict.getId(), PayHouseholdStatusEnum.ACTIVE, payProgram.getId());
 			}
 
 			List<PayPaymentFileInfo> conditionalityComplianceList = housholdInfoDtoList.stream()
 					.filter(obj -> isAddHouseholdToPaymentFile(obj.getPayHouseholdId())).map(hhInfoDtoTmp -> {
 						PayPaymentFileInfo payPaymentFileInfoTmp = PayPaymentFileInfo.builder().build();
-						BeanUtils.copyProperties(payPaymentFileInfoTmp, hhInfoDtoTmp);
+						try {
+							BeanUtils.copyProperties(payPaymentFileInfoTmp, hhInfoDtoTmp);
+						} catch (IllegalAccessException | InvocationTargetException e) {
+							throw new ServiceException(e.getMessage());
+						}
 						payPaymentFileInfoTmp.setPayTermFileId(payTermFile.getId());
+						payPaymentFileInfoTmp.setStatus(PayPaymentFileInfoStatusEnum.PENDING);
 						return payPaymentFileInfoTmp;
 					}).collect(Collectors.toList());
 
@@ -136,7 +147,7 @@ public class PaymentServiceImpl implements PaymentService {
 	@Transactional(readOnly = true)
 	private Boolean isHouseholdOvercameLimitPaymentsByProgram(PayHousehold payHousehold) {
 		try {
-			PayProgram payProgram = payHouseholdRepository.findHouseholdProgram(payHousehold);
+			PayProgram payProgram = householdService.findHouseholdProgram(payHousehold);
 			return payProgram.getNumberOfPayments() == null ? Boolean.FALSE
 					: (calculateHouseholdNumberOfPayments(payHousehold)) + 1 > payProgram.getNumberOfPayments();
 		} catch (DataAccessException e) {
@@ -156,11 +167,8 @@ public class PaymentServiceImpl implements PaymentService {
 	@Transactional(readOnly = true)
 	private Long calculateHouseholdNumberOfPayments(PayHousehold payHousehold) {
 		try {
-			List<PayHouseholdPaymentsRegistry> list = payHouseholdPaymentsRegistryRepository
-					.findAllByPayHousehold(payHousehold);
-			return list.stream()
-					.filter(obj -> obj.getStatus().equals(PayHouseholdPaymentsRegistryStatusEnum.PENDING_PAYMENT))
-					.count();
+			List<PayHouseholdPaymentsRegistry> list = payHouseholdPaymentsRegistryRepository.findAllByPayHousehold(payHousehold);
+			return list.stream().filter(obj -> obj.getStatus().equals(PayHouseholdPaymentsRegistryStatusEnum.PENDING_PAYMENT)).count();
 		} catch (DataAccessException e) {
 			log.error("calculateHouseholdNumberOfPayments = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
@@ -211,9 +219,15 @@ public class PaymentServiceImpl implements PaymentService {
 
 	@Override
 	@Transactional
-	public Map<PaymentsAmountsEnum, Double> calculateAmountAndSaveHouseholdPaymentRegistry(PayTermFile payTermFile,
-			PayHousehold payHousehold) throws ServiceException {
+	public Map<PaymentsAmountsEnum, Double> calculateAmountAndSaveHouseholdPaymentRegistry(Long payTermFileId,
+			PayHouseholdIdAndCodeDTO payHouseholdIdAndCodeDTO) throws ServiceException {
 		try {
+
+			PayTermFile payTermFile = termService.findPayTermFileById(payTermFileId);
+
+			PayHousehold payHousehold = PayHousehold.builder().householdCode(payHouseholdIdAndCodeDTO.getHouseholdCode())
+					.householdId(payHouseholdIdAndCodeDTO.getPayHouseholdId()).build();
+
 			Double currentAmount = calculateCurrentAmount(payTermFile, payHousehold);
 			Double arrearsAmount = calculateArrearsAmount(payHousehold);
 			Double totalAmount = currentAmount + arrearsAmount;
@@ -247,7 +261,7 @@ public class PaymentServiceImpl implements PaymentService {
 		try {
 
 			// household not receive payment if it has not accomplished with the compliance
-			if (!isHouseholdReceivePaymentByCompliance(payTermFile, payHousehold)) {
+			if (!isHouseholdReceivePaymentByCompliance(payTermFile, payHousehold.getHouseholdCode())) {
 				return ZERO_VALUE;
 			}
 
@@ -255,8 +269,8 @@ public class PaymentServiceImpl implements PaymentService {
 			inactivatePayHouseholdClaims(payHousehold, claimsInfo.getObject());
 			Double claimsValues = claimsInfo.getValue();
 
-			Double currentAmount = payTermFile.getPayTerm().getPayFormulas().stream()
-					.mapToDouble(obj -> calculateAmount(payHousehold,obj)).sum();
+			// payTermFile.getPayTerm().getPayFormulas().size();
+			Double currentAmount = payTermFile.getPayTerm().getPayFormulas().stream().mapToDouble(obj -> calculateAmount(payHousehold, obj)).sum();
 
 			return currentAmount + claimsValues;
 
@@ -266,17 +280,17 @@ public class PaymentServiceImpl implements PaymentService {
 		}
 	}
 
-	
 	/**
 	 * calculate household amount related to the formula
+	 * 
 	 * @param payHousehold
 	 * @param payFormula
 	 * @return
 	 */
-	private Double calculateAmount(PayHousehold payHousehold,PayFormula payFormula) {
+	private Double calculateAmount(PayHousehold payHousehold, PayFormula payFormula) {
 		try {
 			// TODO
-			return ZERO_VALUE;
+			return 5.5; // ZERO_VALUE;
 		} catch (DataAccessException e) {
 			log.error("calculateAmount = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
@@ -287,21 +301,19 @@ public class PaymentServiceImpl implements PaymentService {
 	 * Verify whether household could get the payment based on the compliance answer
 	 * 
 	 * @param payTermFile
-	 * @param payHousehold
+	 * @param householdCode
 	 * @return
 	 */
-	private Boolean isHouseholdReceivePaymentByCompliance(PayTermFile payTermFile, PayHousehold payHousehold) {
+	private Boolean isHouseholdReceivePaymentByCompliance(PayTermFile payTermFile, String householdCode) {
 
 		if (payTermFile.getPayTerm().getComplianceTermId() == null) {
 			return Boolean.TRUE;
 		}
 		try {
 			// validate whether the household has accomplished the assignes compliance
-			Optional<CompComplianceAnswerEnum> opt = retrieveHouseholdComplianceInformation(
-					payTermFile.getPayTerm().getComplianceTermId(),
-					payHouseholdRepository.findHouseholdCode(payHousehold));
-			return !opt.isPresent() ? Boolean.TRUE
-					: opt.get().equals(CompComplianceAnswerEnum.YES) ? Boolean.TRUE : Boolean.FALSE;
+			Optional<CompComplianceAnswerEnum> opt = retrieveHouseholdComplianceInformation(payTermFile.getPayTerm().getComplianceTermId(),
+					householdCode);
+			return !opt.isPresent() ? Boolean.TRUE : opt.get().equals(CompComplianceAnswerEnum.YES) ? Boolean.TRUE : Boolean.FALSE;
 		} catch (RestClientException e) {
 			return Boolean.TRUE;
 		}
@@ -315,17 +327,16 @@ public class PaymentServiceImpl implements PaymentService {
 	 * @return
 	 * @throws RestClientException
 	 */
-	private Optional<CompComplianceAnswerEnum> retrieveHouseholdComplianceInformation(Long complianceTermId,
-			String householdCode) throws RestClientException {
-		String url = endPointRetrieveHouseholdComplianceInformation.replace("{TERM_ID}", complianceTermId.toString())
-				.replace("{HOUSEHOLD_CODE}", householdCode);
+	private Optional<CompComplianceAnswerEnum> retrieveHouseholdComplianceInformation(Long complianceTermId, String householdCode)
+			throws RestClientException {
+		String url = endPointRetrieveHouseholdComplianceInformation.replace("{TERM_ID}", complianceTermId.toString()).replace("{HOUSEHOLD_CODE}",
+				householdCode);
 
 		ResponseEntity<ResponseCompRegisteredConciliationDTO> response = restTemplateCompliance.getForEntity(url,
 				ResponseCompRegisteredConciliationDTO.class);
 
 		if (response.getStatusCode().equals(HttpStatus.OK)) {
-			return response.getBody().isResponseOK() ? Optional.of(response.getBody().getData().getComplianceAnswer())
-					: Optional.empty();
+			return response.getBody().isResponseOK() ? Optional.of(response.getBody().getData().getComplianceAnswer()) : Optional.empty();
 		} else {
 			log.error("Cannot connect with compliance app, httpStatus = {}", response.getStatusCode());
 			throw new RestClientException("Cannot connect with compliance app");
@@ -343,8 +354,8 @@ public class PaymentServiceImpl implements PaymentService {
 	private AmountWithRelatedObjectUtil<List<PayHouseholdClaimValue>> calculateClaimsAmount(PayHousehold payHousehold) {
 		try {
 
-			List<PayHouseholdClaimValue> list = payHouseholdClaimValueRepository
-					.findAllByPayHouseholdAndStatus(payHousehold, PayHouseholdClaimStatus.ACTIVE);
+			List<PayHouseholdClaimValue> list = householdService.findAllClaimsValuesByPayHouseholdAndStatus(payHousehold,
+					PayHouseholdClaimStatus.ACTIVE);
 
 			return AmountWithRelatedObjectUtil.<List<PayHouseholdClaimValue>>builder().object(list)
 					.value(list.stream().mapToDouble(obj -> obj.getAmount()).sum()).build();
@@ -356,18 +367,17 @@ public class PaymentServiceImpl implements PaymentService {
 	}
 
 	@Transactional
-	private void inactivatePayHouseholdClaims(PayHousehold payHousehold,
-			List<PayHouseholdClaimValue> payHouseholdClaimValueListTmp) {
+	private void inactivatePayHouseholdClaims(PayHousehold payHousehold, List<PayHouseholdClaimValue> payHouseholdClaimValueListTmp) {
 		try {
 
-			List<PayHouseholdClaimValue> listForUpdate = payHouseholdClaimValueRepository
-					.findAllByPayHouseholdAndStatus(payHousehold, PayHouseholdClaimStatus.ACTIVE);
+			List<PayHouseholdClaimValue> listForUpdate = householdService.findAllClaimsValuesByPayHouseholdAndStatus(payHousehold,
+					PayHouseholdClaimStatus.ACTIVE);
 			listForUpdate.stream().forEach(obj -> {
 				if (payHouseholdClaimValueListTmp.contains(obj)) {
 					obj.setStatus(PayHouseholdClaimStatus.INACTIVE);
 				}
 			});
-			payHouseholdClaimValueRepository.saveAll(listForUpdate);
+			householdService.saveAllClaimsValues(listForUpdate);
 		} catch (DataAccessException e) {
 			log.error("inactivatePayHouseholdClaims = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
@@ -385,12 +395,10 @@ public class PaymentServiceImpl implements PaymentService {
 	private Double calculateArrearsAmount(PayHousehold payHousehold) {
 		try {
 
-			List<PayHouseholdPaymentsRegistry> list = payHouseholdPaymentsRegistryRepository
-					.findAllByPayHousehold(payHousehold);
+			List<PayHouseholdPaymentsRegistry> list = payHouseholdPaymentsRegistryRepository.findAllByPayHousehold(payHousehold);
 
 			Optional<PayHouseholdPaymentsRegistry> optionalCurrentRegistry;
-			if ((optionalCurrentRegistry = list.stream().filter(obj -> obj.getClosedAt() == null).findFirst())
-					.isPresent()) {
+			if ((optionalCurrentRegistry = list.stream().filter(obj -> obj.getClosedAt() == null).findFirst()).isPresent()) {
 
 				PayHouseholdPaymentsRegistry currentRegistry = optionalCurrentRegistry.get();
 				if (currentRegistry.getStatus().equals(PayHouseholdPaymentsRegistryStatusEnum.ARREARS)) {
@@ -406,13 +414,11 @@ public class PaymentServiceImpl implements PaymentService {
 	}
 
 	@Transactional
-	private void registerPendingPayment(PayTermFile payTermFile, PayHousehold payHousehold,
-			final Map<PaymentsAmountsEnum, Double> hashMapAmount) {
+	private void registerPendingPayment(PayTermFile payTermFile, PayHousehold payHousehold, final Map<PaymentsAmountsEnum, Double> hashMapAmount) {
 		try {
 
 			Date currentDate = Calendar.getInstance().getTime();
-			List<PayHouseholdPaymentsRegistry> list = payHouseholdPaymentsRegistryRepository
-					.findAllByPayHousehold(payHousehold);
+			List<PayHouseholdPaymentsRegistry> list = payHouseholdPaymentsRegistryRepository.findAllByPayHousehold(payHousehold);
 			if (list.stream().filter(obj -> obj.getClosedAt() == null).findFirst().isPresent()) {
 
 				list.stream().forEach(obj -> {
@@ -422,12 +428,10 @@ public class PaymentServiceImpl implements PaymentService {
 				});
 			}
 
-			list.add(PayHouseholdPaymentsRegistry.builder()
-					.currentAmount(hashMapAmount.get(PaymentsAmountsEnum.CURRENT_AMOUNT))
+			list.add(PayHouseholdPaymentsRegistry.builder().currentAmount(hashMapAmount.get(PaymentsAmountsEnum.CURRENT_AMOUNT))
 					.arrearsAmount(hashMapAmount.get(PaymentsAmountsEnum.ARRERAS_AMOUNT))
-					.totalAmount(hashMapAmount.get(PaymentsAmountsEnum.TOTAL_AMOUNT)).createdAt(currentDate)
-					.payHousehold(payHousehold).payTermFile(payTermFile)
-					.status(PayHouseholdPaymentsRegistryStatusEnum.PENDING_PAYMENT).build());
+					.totalAmount(hashMapAmount.get(PaymentsAmountsEnum.TOTAL_AMOUNT)).createdAt(currentDate).payHousehold(payHousehold)
+					.payTermFile(payTermFile).status(PayHouseholdPaymentsRegistryStatusEnum.PENDING_PAYMENT).build());
 
 			payHouseholdPaymentsRegistryRepository.saveAll(list);
 
@@ -436,4 +440,41 @@ public class PaymentServiceImpl implements PaymentService {
 			throw new ServiceException(e.getMessage());
 		}
 	}
+
+	@Override
+	@Transactional
+	public void updatePayPaymentFileInfoAmount(PayPaymentFileInfo payFileInfoTmp, Double amount) throws ServiceException {
+		try {
+			PayPaymentFileInfo payFileInfo = payPaymentFileInfoRepository.findById(payFileInfoTmp.getId()).get();
+			payFileInfo.setAmount(amount);
+			payPaymentFileInfoRepository.save(payFileInfo);
+		} catch (DataAccessException e) {
+			log.error("updatePayPaymentFileInfoAmount = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<PayPaymentFileInfo> findPayPaymentFileInfoByStatus(PayPaymentFileInfoStatusEnum status, Integer numberOfRecords)
+			throws ServiceException {
+		try {
+			return payPaymentFileInfoRepository.findByStatus(status, PageRequest.of(0, numberOfRecords));
+		} catch (DataAccessException e) {
+			log.error("findPayPaymentFileInfoByStatus = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<CalculateAmountResumeDTO> retrieveSummaryGeneratePaymentAmount(PayTermFile payTermFile) throws ServiceException {
+		try {
+			return payPaymentFileInfoRepository.findCalculateAmountResume(payTermFile.getId());
+		} catch (DataAccessException e) {
+			log.error("retrieveSummaryGeneratePaymentAmount = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+
 }

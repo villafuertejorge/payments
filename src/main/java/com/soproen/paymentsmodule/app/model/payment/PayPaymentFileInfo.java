@@ -1,17 +1,20 @@
 package com.soproen.paymentsmodule.app.model.payment;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Date;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
+
+import com.soproen.paymentsmodule.app.enums.PayPaymentFileInfoStatusEnum;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -94,6 +97,13 @@ public class PayPaymentFileInfo implements Serializable {
 
 	@Column(name="term_file_id")
 	private Long payTermFileId;
+	
+	@Column(name="status")
+	@Enumerated(EnumType.STRING)
+	private PayPaymentFileInfoStatusEnum status; 
+	
+	@Column(name="error_description")
+	private String errorDescription;
 
 	
 }

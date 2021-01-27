@@ -7,8 +7,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.soproen.paymentsmodule.app.model.catalog.PayDistrict;
 import com.soproen.paymentsmodule.app.model.catalog.PayProgram;
+import com.soproen.paymentsmodule.app.model.catalog.PayTransferInstitution;
 import com.soproen.paymentsmodule.app.model.household.PayHousehold;
+import com.soproen.paymentsmodule.app.model.household.PayHouseholdIdAndCodeDTO;
 import com.soproen.paymentsmodule.app.model.household.PayHouseholdInformationForPaymentFileDTO;
 
 @Repository
@@ -89,6 +92,16 @@ public interface PayHouseholdRepository extends JpaRepository<PayHousehold, Long
 
 	@Query(value="SELECT p.householdCode FROM PayHousehold p WHERE p = :payHousehold ")
 	String findHouseholdCode(@Param("payHousehold") PayHousehold payHousehold);
+
+	@Query(value="SELECT DISTINCT p.payTransferInstitution FROM PayHousehold p WHERE p.payDistrict = :payDistrict ")
+	List<PayTransferInstitution> findTransferInstitutionsByDistrict(@Param("payDistrict") PayDistrict payDistrict);
 	
+	@Query(value = "select \r\n" + 
+			"	p.household_id  as payHouseholdId\r\n" + 
+			"	,p.household_code as householdCode\r\n" + 
+			"from payments.pay_households p\r\n" + 
+			"where p.household_id = :payHouseholdId\r\n"
+			, nativeQuery = true)
+	PayHouseholdIdAndCodeDTO findPayHouseholdIdAndCodeDTO(@Param("payHouseholdId") Long payHouseholdId);
 
 }
