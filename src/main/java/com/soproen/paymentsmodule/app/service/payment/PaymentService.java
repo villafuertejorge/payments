@@ -28,4 +28,6 @@ public interface PaymentService {
 
 	List<CalculateAmountResumeDTO> retrieveSummaryGeneratePaymentAmount(PayTermFile payTermFile) throws ServiceException;
 
+	void updatePayPaymentFileInfo(PayPaymentFileInfo payFileInfoTmp) throws ServiceException;
+
 }

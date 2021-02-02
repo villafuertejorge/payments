@@ -13,7 +13,9 @@ import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
+import javax.persistence.OrderBy;
 import javax.persistence.Table;
+import javax.persistence.Transient;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.soproen.paymentsmodule.app.model.catalog.PayDistrict;
@@ -23,6 +25,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Singular;
 
 
 /**
@@ -70,5 +73,16 @@ public class PayTermFile implements Serializable {
 	@JoinColumn(name="transfer_institution_id")
 	@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 	private PayTransferInstitution payTransferInstitution;
-
+	
+	
+	@Singular
+	@OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+	@JsonIgnoreProperties(value = { "hibernateLazyInitializer", "handler", "payTermFile" })
+	@JoinColumn(name = "term_file_id",nullable = false)
+	@OrderBy("id")
+	private List<PayTermConciliationFile> payTermConciliationFiles;
+	
+	@Transient
+	private Boolean isGeneratedFile;
+	
 }

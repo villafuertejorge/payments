@@ -14,7 +14,9 @@ import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 
+import com.soproen.paymentsmodule.app.enums.AmountTransferredEnum;
 import com.soproen.paymentsmodule.app.enums.PayPaymentFileInfoStatusEnum;
+import com.soproen.paymentsmodule.app.enums.WhoReceiveTheTransferEnum;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -50,9 +52,6 @@ public class PayPaymentFileInfo implements Serializable {
 
 	private Double amount;
 
-	@Column(name="amount_transferred")
-	private String amountTransferred;
-
 	@Column(name="contact_number")
 	private String contactNumber;
 
@@ -68,8 +67,6 @@ public class PayPaymentFileInfo implements Serializable {
 	@Column(name="household_code")
 	private String householdCode;
 
-	private String observation;
-
 	@Column(name="payment_receiver_code")
 	private String paymentReceiverCode;
 
@@ -78,13 +75,6 @@ public class PayPaymentFileInfo implements Serializable {
 
 	@Column(name="ta_name")
 	private String taName;
-
-	@Temporal(TemporalType.DATE)
-	@Column(name="transfer_date")
-	private Date transferDate;
-
-	@Column(name="transfer_received_by")
-	private String transferReceivedBy;
 
 	@Column(name="village_name")
 	private String villageName;
@@ -98,12 +88,27 @@ public class PayPaymentFileInfo implements Serializable {
 	@Column(name="term_file_id")
 	private Long payTermFileId;
 	
+	@Column(name="amount_transferred")
+	@Enumerated(EnumType.STRING)
+	private AmountTransferredEnum amountTransferred;
+	
+	@Column(name="transfer_received_by")
+	@Enumerated(EnumType.STRING)
+	private WhoReceiveTheTransferEnum transferReceivedBy;
+	
+	@Temporal(TemporalType.DATE)
+	@Column(name="transfer_date")
+	private Date transferDate;
+	
+	private String observation;
+	
 	@Column(name="status")
 	@Enumerated(EnumType.STRING)
 	private PayPaymentFileInfoStatusEnum status; 
 	
 	@Column(name="error_description")
 	private String errorDescription;
+	
 
 	
 }

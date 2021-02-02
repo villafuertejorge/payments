@@ -227,15 +227,16 @@ public class PaymentServiceImpl implements PaymentService {
 		try {
 			
 			PayTermFile payTermFile = termService.findPayTermFileById(payTermFileId);
-			
 			PayHousehold payHousehold = PayHousehold.builder().householdCode(payHouseholdIdAndCodeDTO.getHouseholdCode())
 					.householdId(payHouseholdIdAndCodeDTO.getPayHouseholdId()).build();
 			
+			
 			Map<PaymentsAmountsEnum, Double> hashMapAmount = calculateTotalAmountForHousehold(payTermFile, payHousehold);
+			
 			registerPendingPayment(payTermFile, payHousehold, hashMapAmount);
 			
 			return hashMapAmount;
-		} catch (DataAccessException e) {
+		} catch (DataAccessException | ServiceException e) {
 			log.error("calculateAmountAndSaveHouseholdPaymentRegistry = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
 		}
@@ -298,7 +299,7 @@ public class PaymentServiceImpl implements PaymentService {
 
 			return currentAmount + claimsValues;
 
-		} catch (DataAccessException e) {
+		} catch (DataAccessException | ServiceException e) {
 			log.error("calculateCurrentAmount = {} ", e.getMessage());
 			throw new ServiceException(e.getMessage());
 		}
@@ -328,7 +329,7 @@ public class PaymentServiceImpl implements PaymentService {
 	 * @param householdCode
 	 * @return
 	 */
-	private Boolean isHouseholdReceivePaymentByCompliance(PayTermFile payTermFile, String householdCode) {
+	private Boolean isHouseholdReceivePaymentByCompliance(PayTermFile payTermFile, String householdCode) throws ServiceException{
 
 		if (payTermFile.getPayTerm().getComplianceTermId() == null) {
 			return Boolean.TRUE;
@@ -339,7 +340,7 @@ public class PaymentServiceImpl implements PaymentService {
 					householdCode);
 			return !opt.isPresent() ? Boolean.TRUE : opt.get().equals(CompComplianceAnswerEnum.YES) ? Boolean.TRUE : Boolean.FALSE;
 		} catch (RestClientException e) {
-			return Boolean.TRUE;
+			throw new ServiceException(e.getMessage());
 		}
 	}
 
@@ -353,18 +354,23 @@ public class PaymentServiceImpl implements PaymentService {
 	 */
 	private Optional<CompComplianceAnswerEnum> retrieveHouseholdComplianceInformation(Long complianceTermId, String householdCode)
 			throws RestClientException {
-		String url = endPointRetrieveHouseholdComplianceInformation.replace("{TERM_ID}", complianceTermId.toString()).replace("{HOUSEHOLD_CODE}",
-				householdCode);
+		try {
+			String url = endPointRetrieveHouseholdComplianceInformation.replace("{TERM_ID}", complianceTermId.toString()).replace("{HOUSEHOLD_CODE}",
+					householdCode);
 
-		ResponseEntity<ResponseCompRegisteredConciliationDTO> response = restTemplateCompliance.getForEntity(url,
-				ResponseCompRegisteredConciliationDTO.class);
+			ResponseEntity<ResponseCompRegisteredConciliationDTO> response = restTemplateCompliance.getForEntity(url,
+					ResponseCompRegisteredConciliationDTO.class);
 
-		if (response.getStatusCode().equals(HttpStatus.OK)) {
-			return response.getBody().isResponseOK() ? Optional.of(response.getBody().getData().getComplianceAnswer()) : Optional.empty();
-		} else {
-			log.error("Cannot connect with compliance app, httpStatus = {}", response.getStatusCode());
+			if (response.getStatusCode().equals(HttpStatus.OK)) {
+				return response.getBody().isResponseOK() ? Optional.of(response.getBody().getData().getComplianceAnswer()) : Optional.empty();
+			} else {
+				throw new RestClientException("Cannot connect with compliance app");
+			}
+		} catch (Exception e) {
+			log.error("Cannot connect with compliance app" );
 			throw new RestClientException("Cannot connect with compliance app");
 		}
+		
 	}
 
 	/**
@@ -500,5 +506,16 @@ public class PaymentServiceImpl implements PaymentService {
 			throw new ServiceException(e.getMessage());
 		}
 	}
-
+	
+	@Override
+	@Transactional
+	public void updatePayPaymentFileInfo(PayPaymentFileInfo payFileInfoTmp) throws ServiceException {
+		try {
+			payPaymentFileInfoRepository.save(payFileInfoTmp);
+		} catch (DataAccessException e) {
+			log.error("updatePayPaymentFileInfo = {} ", e.getMessage());
+			throw new ServiceException(e.getMessage());
+		}
+	}
+	
 }

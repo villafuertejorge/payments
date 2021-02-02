@@ -92,13 +92,28 @@ public class CsvUtils {
 
 				String[] array = obj.split(",");
 				String hhCode = array[4];
-				String answer = array[8];
+				
+				String amountTransferred = "";
+				if (array.length > 14) {
+					amountTransferred = array[14];
+				}
+				
+				String whoReceivedTransfer = "";
+				if (array.length > 15) {
+					whoReceivedTransfer = array[15];
+				}
+				
+				String transferDate = "";
+				if (array.length > 16) {
+					transferDate = array[16];
+				}
+				
 				String observation = "";
-				if (array.length == 10) {
-					observation = array[9];
+				if (array.length > 17) {
+					observation = array[17];
 				}
 
-				return new String[] { hhCode, answer, observation };
+				return new String[] { hhCode, amountTransferred, whoReceivedTransfer, transferDate, observation };
 			}).collect(Collectors.toList());
 
 			br.close();

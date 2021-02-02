@@ -23,4 +23,6 @@ public interface CatalogService {
 
 	List<PayTransferInstitution> findAllPayTransferInstitution() throws ServiceException;
 
+	PayProgram findPayProgramById(Long programId) throws ServiceException;
+
 }

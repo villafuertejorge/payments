@@ -18,10 +18,14 @@ public interface GeneratePaymentFileService {
 
 	List<PayPaymentFileInfo> retrievePayPaymentFileInfo(PayTermFile payTermFileTmp);
 
-	void calculatePaymentAmount()  throws ServiceException;;
-
 	void verifyCompleteCalculateAmountProcess() throws ServiceException;
 
 	void createCsvPaymentFile() throws ServiceException;
+
+	List<PayPaymentFileInfo> retrievePayPaymentFileInfoByStatus();
+
+	void calculatePaymentAmount(PayPaymentFileInfo payPaymentFileInfo) throws ServiceException;
+
+	void saveAllPayPaymentFileInfo(List<PayPaymentFileInfo> list) throws ServiceException;
 
 }

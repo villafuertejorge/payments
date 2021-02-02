@@ -1,5 +1,6 @@
 package com.soproen.paymentsmodule.app.utilities;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -22,7 +23,11 @@ public class Utilities {
 		SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern);
 		return simpleDateFormat.format(tmpDate);
 	}
-
+	
+	public Date stringToDate(String tmpDate, String pattern) throws ParseException {
+		return new SimpleDateFormat(pattern).parse(tmpDate);
+	}
+	
 	public Boolean isObjectIdentifiable(Identifiable identifiableObj) {
 		return identifiableObj != null && identifiableObj.getId() != null;
 	}
